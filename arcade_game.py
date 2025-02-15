@@ -71,6 +71,7 @@ class GameView(arcade.View):
         self.level = 1
         super().__init__()
         self.camera = None
+        self.gui_camera = None
         self.physics_engine = None
 
         # Track the current state of what key is pressed
@@ -80,6 +81,7 @@ class GameView(arcade.View):
         self.down_pressed = False
         self.jump_needs_reset = False
         self.shoot_pressed = False
+        self.score = 0
 
         arcade.set_background_color(arcade.csscolor.CORNFLOWER_BLUE)
 
@@ -87,6 +89,8 @@ class GameView(arcade.View):
         """Set up the game here. Call this function to restart the game."""
 
         self.camera = arcade.Camera(self.window.width, self.window.height)
+
+        self.gui_camera = arcade.Camera(self.window.width, self.window.height)
 
         map_name = f"tiles/Map2.json"
 
@@ -188,6 +192,16 @@ class GameView(arcade.View):
 
         self.center_camera_to_player()
 
+        coin_hit_list = arcade.check_for_collision_with_list(
+            self.player_sprite, self.scene["coins"]
+        )
+
+        for coin in coin_hit_list:
+            # Remove the coin
+            coin.remove_from_sprite_lists()
+            # Play a sound
+            self.score += 1
+
     def on_draw(self):
         """Render the screen."""
 
@@ -196,6 +210,17 @@ class GameView(arcade.View):
         self.camera.use()
         # Draw our Scene
         self.scene.draw()
+
+        self.gui_camera.use()
+
+        score_text = f"Score: {self.score}"
+        arcade.draw_text(
+            score_text,
+            10,
+            10,
+            arcade.csscolor.WHITE,
+            18,
+        )
 
     def on_show_view(self):
         self.setup()
