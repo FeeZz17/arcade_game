@@ -30,6 +30,7 @@ class layers(Enum):
     GROUND = "ground"
     TRAPS = "traps"
     BUTTONS = "buttons"
+    PORTAL_TRAP = "portal_trap"
 
 
 def load_texture_pair(filename):
@@ -201,6 +202,14 @@ class GameView(arcade.View):
             coin.remove_from_sprite_lists()
             # Play a sound
             self.score += 1
+
+        if arcade.check_for_collision_with_list(
+            self.player_sprite, self.scene[layers.PORTAL_TRAP.value]
+        ):
+            self.player_sprite.change_x = 0
+            self.player_sprite.change_y = 0
+            self.player_sprite.center_x = 44 * GRID_PIXEL_SIZE
+            self.player_sprite.center_y = 6 * GRID_PIXEL_SIZE
 
     def on_draw(self):
         """Render the screen."""
