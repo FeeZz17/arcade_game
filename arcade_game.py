@@ -13,13 +13,39 @@ RIGHT_FACING = 0
 LEFT_FACING = 1
 
 # player settings
-PLAYER_MOVEMENT_SPEED = 5
-PLAYER_START_X = 60
-PLAYER_START_Y = 330
+PLAYER_MOVEMENT_SPEED = 3.5
 PLAYER_JUMP_SPEED = 15
 CHARACTER_SCALING = 0.4
-GRAVITY = 1
+GRAVITY = 1.2
 TILE_SCALING = 1
+
+
+def object_layer_parser(level_path: str, layer_name: str) -> list[TiledObject]:
+    with open(level_path) as f:
+        data = json.load(f)
+
+        for i in data["layers"]:
+            if i["name"] == layer_name:
+                objects = i["objects"]
+
+    objects_layer = []
+    for object in objects:
+        propertys = {}
+        for poperty in object["properties"]:
+            propertys[poperty["name"]] = poperty["value"]
+
+        to = TiledObject(
+            [object["x"], object["y"]], propertys, object["name"], object["type"]
+        )
+        objects_layer.append(to)
+
+    return objects_layer
+
+
+respawn_points = {
+    1: [3 * GRID_PIXEL_SIZE, 12 * GRID_PIXEL_SIZE],
+    2: [3 * GRID_PIXEL_SIZE, 4 * GRID_PIXEL_SIZE],
+}
 
 
 class layers(Enum):
@@ -31,6 +57,7 @@ class layers(Enum):
     TRAPS = "traps"
     BUTTONS = "buttons"
     PORTAL_TRAP = "portal_trap"
+    PORTALS = "portals"
 
 
 def load_texture_pair(filename):
@@ -93,7 +120,7 @@ class GameView(arcade.View):
 
         self.gui_camera = arcade.Camera(self.window.width, self.window.height)
 
-        map_name = f"tiles/Map2.json"
+        map_name = f"tiles/Map{self.level}.json"
 
         self.tile_map = arcade.load_tilemap(map_name, TILE_SCALING)  # , layer_options)
         self.end_of_map = self.tile_map.width * GRID_PIXEL_SIZE
@@ -103,8 +130,8 @@ class GameView(arcade.View):
             arcade.set_background_color(self.tile_map.background_color)
 
         self.player_sprite = PlayerCharacter()
-        self.player_sprite.center_x = PLAYER_START_X
-        self.player_sprite.center_y = PLAYER_START_Y
+        self.player_sprite.center_x = respawn_points[self.level][0]
+        self.player_sprite.center_y = respawn_points[self.level][1]
         self.scene.add_sprite("Player", self.player_sprite)
 
         self.physics_engine = arcade.PhysicsEnginePlatformer(
@@ -203,13 +230,21 @@ class GameView(arcade.View):
             # Play a sound
             self.score += 1
 
+        if self.level == 1:
+            if arcade.check_for_collision_with_list(
+                self.player_sprite, self.scene[layers.PORTAL_TRAP.value]
+            ):
+                self.player_sprite.change_x = 0
+                self.player_sprite.change_y = 0
+                self.player_sprite.center_x = 44 * GRID_PIXEL_SIZE
+                self.player_sprite.center_y = 6 * GRID_PIXEL_SIZE
+
         if arcade.check_for_collision_with_list(
-            self.player_sprite, self.scene[layers.PORTAL_TRAP.value]
+            self.player_sprite, self.scene[layers.PORTALS.value]
         ):
-            self.player_sprite.change_x = 0
-            self.player_sprite.change_y = 0
-            self.player_sprite.center_x = 44 * GRID_PIXEL_SIZE
-            self.player_sprite.center_y = 6 * GRID_PIXEL_SIZE
+            self.level += 1
+
+            self.setup()
 
     def on_draw(self):
         """Render the screen."""
