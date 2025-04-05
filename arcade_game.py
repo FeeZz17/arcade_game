@@ -58,6 +58,8 @@ class layers(Enum):
     BUTTONS = "buttons"
     PORTAL_TRAP = "portal_trap"
     PORTALS = "portals"
+    LASERS = "lasers"
+    BULLETS = "bullets"
 
 
 def load_texture_pair(filename):
@@ -125,7 +127,8 @@ class GameView(arcade.View):
         self.tile_map = arcade.load_tilemap(map_name, TILE_SCALING)  # , layer_options)
         self.end_of_map = self.tile_map.width * GRID_PIXEL_SIZE
         self.scene = arcade.Scene.from_tilemap(self.tile_map)
-
+        self.can_shoot = True
+        self.shoot_timer = 0
         if self.tile_map.background_color:
             arcade.set_background_color(self.tile_map.background_color)
 
@@ -245,6 +248,29 @@ class GameView(arcade.View):
             self.level += 1
 
             self.setup()
+
+        if self.can_shoot:
+            for laser in self.scene[layers.LASERS.value]:
+
+                bullet = arcade.Sprite(
+                    ":resources:images/space_shooter/laserBlue01.png"
+                )
+
+                bullet.change_x = -12
+
+                bullet.center_x = laser.center_x
+                bullet.center_y = laser.center_y
+
+                self.scene.add_sprite(layers.BULLETS.value, bullet)
+
+            self.can_shoot = False
+        else:
+            self.shoot_timer += 1
+            if self.shoot_timer == 100:
+                self.can_shoot = True
+                self.shoot_timer = 0
+
+        self.scene.update([layers.BULLETS.value])
 
     def on_draw(self):
         """Render the screen."""
