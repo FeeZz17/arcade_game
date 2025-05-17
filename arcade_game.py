@@ -60,6 +60,7 @@ class layers(Enum):
     PORTALS = "portals"
     LASERS = "lasers"
     BULLETS = "bullets"
+    MOVING_TRAPS = "moving_traps"
 
 
 def load_texture_pair(filename):
@@ -140,7 +141,10 @@ class GameView(arcade.View):
         self.physics_engine = arcade.PhysicsEnginePlatformer(
             self.player_sprite,
             gravity_constant=GRAVITY,
-            walls=[self.scene["ground"], self.scene["platforms"]],
+            walls=[
+                self.scene["ground"],
+                self.scene["platforms"],
+            ],
         )
 
     def process_keychange(self):
@@ -233,6 +237,10 @@ class GameView(arcade.View):
             # Play a sound
             self.score += 1
 
+        button_hit_list = arcade.check_for_collision_with_list(
+            self.player_sprite, self.scene["buttons"]
+        )
+
         if self.level == 1:
             if arcade.check_for_collision_with_list(
                 self.player_sprite, self.scene[layers.PORTAL_TRAP.value]
@@ -270,7 +278,64 @@ class GameView(arcade.View):
                 self.can_shoot = True
                 self.shoot_timer = 0
 
-        self.scene.update([layers.BULLETS.value])
+        self.scene.update_animation(delta_time, [layers.MOVING_TRAPS.value])
+
+        self.scene.update([layers.MOVING_TRAPS.value, layers.BULLETS.value])
+
+        if arcade.check_for_collision_with_list(
+            self.player_sprite, self.scene[layers.TRAPS.value]
+        ):
+            self.level = 1
+            self.score = 0
+            self.setup()
+
+        if arcade.check_for_collision_with_list(
+            self.player_sprite, self.scene[layers.BULLETS.value]
+        ):
+            self.level = 1
+            self.score = 0
+            self.setup()
+
+        if button_hit_list != []:
+            for moving_sprite in self.scene[layers.MOVING_TRAPS.value]:
+                if (
+                    moving_sprite.boundary_top
+                    # and moving_sprite.change_y > 0
+                    and moving_sprite.top > moving_sprite.boundary_top
+                ):
+                    moving_sprite.change_y = 0
+                elif (
+                    moving_sprite.boundary_bottom
+                    and moving_sprite.change_y < 0
+                    and moving_sprite.bottom < moving_sprite.boundary_bottom
+                ):
+                    moving_sprite.change_y = 0
+                elif moving_sprite.change_y == 0:
+                    moving_sprite.change_y = 1
+
+        if button_hit_list == []:
+            for moving_sprite in self.scene[layers.MOVING_TRAPS.value]:
+                if (
+                    moving_sprite.boundary_bottom
+                    # and moving_sprite.change_y > 0
+                    and moving_sprite.bottom < moving_sprite.boundary_bottom
+                ):
+                    moving_sprite.change_y = 0
+                elif (
+                    moving_sprite.boundary_top
+                    and moving_sprite.change_y > 0
+                    and moving_sprite.top > moving_sprite.boundary_top
+                ):
+                    moving_sprite.change_y = 0
+                elif moving_sprite.change_y == 0:
+                    moving_sprite.change_y = -1
+
+        if arcade.check_for_collision_with_list(
+            self.player_sprite, self.scene[layers.MOVING_TRAPS.value]
+        ):
+            self.level = 1
+            self.score = 0
+            self.setup()
 
     def on_draw(self):
         """Render the screen."""
