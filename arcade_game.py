@@ -1,7 +1,7 @@
-import json
+import time
 from enum import Enum
+
 import arcade
-from arcade.arcade_types import TiledObject
 
 # general settings
 SCREEN_WIDTH = 800
@@ -18,28 +18,6 @@ PLAYER_JUMP_SPEED = 15
 CHARACTER_SCALING = 0.4
 GRAVITY = 1.2
 TILE_SCALING = 1
-
-
-def object_layer_parser(level_path: str, layer_name: str) -> list[TiledObject]:
-    with open(level_path) as f:
-        data = json.load(f)
-
-        for i in data["layers"]:
-            if i["name"] == layer_name:
-                objects = i["objects"]
-
-    objects_layer = []
-    for object in objects:
-        propertys = {}
-        for poperty in object["properties"]:
-            propertys[poperty["name"]] = poperty["value"]
-
-        to = TiledObject(
-            [object["x"], object["y"]], propertys, object["name"], object["type"]
-        )
-        objects_layer.append(to)
-
-    return objects_layer
 
 
 respawn_points = {
@@ -113,6 +91,9 @@ class GameView(arcade.View):
         self.jump_needs_reset = False
         self.shoot_pressed = False
         self.score = 0
+        self.hp = 3
+        self.invulnerable_timer = 0
+        self.boost_time_start = 0
 
         arcade.set_background_color(arcade.csscolor.CORNFLOWER_BLUE)
 
@@ -122,6 +103,7 @@ class GameView(arcade.View):
         self.camera = arcade.Camera(self.window.width, self.window.height)
 
         self.gui_camera = arcade.Camera(self.window.width, self.window.height)
+        self.platfotms_to_fall = {}
 
         map_name = f"tiles/Map{self.level}.json"
 
@@ -158,7 +140,12 @@ class GameView(arcade.View):
                 self.physics_engine.can_jump(y_distance=10)
                 and not self.jump_needs_reset
             ):
-                self.player_sprite.change_y = PLAYER_JUMP_SPEED
+                if time.time() - self.boost_time_start < 3:
+                    jump_speed_multiplier = 2
+                else:
+                    jump_speed_multiplier = 1
+
+                self.player_sprite.change_y = PLAYER_JUMP_SPEED * jump_speed_multiplier
                 self.jump_needs_reset = True
 
         # Process left/right
@@ -236,10 +223,15 @@ class GameView(arcade.View):
             coin.remove_from_sprite_lists()
             # Play a sound
             self.score += 1
-
-        button_hit_list = arcade.check_for_collision_with_list(
-            self.player_sprite, self.scene["buttons"]
-        )
+        if self.level == 2:
+            boost_list = arcade.check_for_collision_with_list(
+                self.player_sprite, self.scene["boost"]
+            )
+            if boost_list:
+                self.boost_time_start = time.time()
+                for boost in boost_list:
+                    # Remove the coin
+                    boost.remove_from_sprite_lists()
 
         if self.level == 1:
             if arcade.check_for_collision_with_list(
@@ -259,7 +251,6 @@ class GameView(arcade.View):
 
         if self.can_shoot:
             for laser in self.scene[layers.LASERS.value]:
-
                 bullet = arcade.Sprite(
                     ":resources:images/space_shooter/laserBlue01.png"
                 )
@@ -278,63 +269,100 @@ class GameView(arcade.View):
                 self.can_shoot = True
                 self.shoot_timer = 0
 
-        self.scene.update_animation(delta_time, [layers.MOVING_TRAPS.value])
+        if self.level == 1:
+            self.scene.update_animation(delta_time, [layers.MOVING_TRAPS.value])
+            self.scene.update([layers.MOVING_TRAPS.value])
+        if self.level == 2:
+            self.scene.update([layers.BULLETS.value])
 
-        self.scene.update([layers.MOVING_TRAPS.value, layers.BULLETS.value])
+        if self.level == 1:
+            if arcade.check_for_collision_with_list(
+                self.player_sprite, self.scene[layers.TRAPS.value]
+            ):
+                if time.time() - self.invulnerable_timer < 2:
+                    pass
+                else:
+                    self.hp -= 1
+                    self.invulnerable_timer = time.time()
+        if self.level == 2:
+            if arcade.check_for_collision_with_list(
+                self.player_sprite, self.scene[layers.BULLETS.value]
+            ):
+                bullet_hit_list = arcade.check_for_collision_with_list(
+                    self.player_sprite, self.scene["bullets"]
+                )
+                for bullet in bullet_hit_list:
+                    bullet.remove_from_sprite_lists()
+                self.hp -= 1
 
-        if arcade.check_for_collision_with_list(
-            self.player_sprite, self.scene[layers.TRAPS.value]
-        ):
-            self.level = 1
-            self.score = 0
-            self.setup()
-
-        if arcade.check_for_collision_with_list(
-            self.player_sprite, self.scene[layers.BULLETS.value]
-        ):
-            self.level = 1
-            self.score = 0
-            self.setup()
-
-        if button_hit_list != []:
-            for moving_sprite in self.scene[layers.MOVING_TRAPS.value]:
+        if self.level == 2:
+            l = []
+            platforms_hit_list = arcade.check_for_collision_with_list(
+                self.player_sprite, self.scene["failing_platforms"]
+            )
+            for i in platforms_hit_list:
+                if i.number not in self.platforms_to_fall:
+                    self.platforms_to_fall[i.number] = time.time()
+            for i in self.scene["failing_platforms"]:
                 if (
-                    moving_sprite.boundary_top
-                    # and moving_sprite.change_y > 0
-                    and moving_sprite.top > moving_sprite.boundary_top
+                    i.number in self.platforms_to_fall
+                    and time.time() > self.platforms_to_fall[i.number] + 3
                 ):
-                    moving_sprite.change_y = 0
-                elif (
-                    moving_sprite.boundary_bottom
-                    and moving_sprite.change_y < 0
-                    and moving_sprite.bottom < moving_sprite.boundary_bottom
-                ):
-                    moving_sprite.change_y = 0
-                elif moving_sprite.change_y == 0:
-                    moving_sprite.change_y = 1
+                    l.append(i)
+            for i in l:
+                if i in self.scene["failing_platforms"]:
+                    self.scene["failing_platforms"].remove(i)
 
-        if button_hit_list == []:
-            for moving_sprite in self.scene[layers.MOVING_TRAPS.value]:
-                if (
-                    moving_sprite.boundary_bottom
-                    # and moving_sprite.change_y > 0
-                    and moving_sprite.bottom < moving_sprite.boundary_bottom
-                ):
-                    moving_sprite.change_y = 0
-                elif (
-                    moving_sprite.boundary_top
-                    and moving_sprite.change_y > 0
-                    and moving_sprite.top > moving_sprite.boundary_top
-                ):
-                    moving_sprite.change_y = 0
-                elif moving_sprite.change_y == 0:
-                    moving_sprite.change_y = -1
+        if self.level == 1:
+            button_hit_list = arcade.check_for_collision_with_list(
+                self.player_sprite, self.scene["buttons"]
+            )
+            if button_hit_list != []:
+                for moving_sprite in self.scene[layers.MOVING_TRAPS.value]:
+                    if (
+                        moving_sprite.boundary_top
+                        # and moving_sprite.change_y > 0
+                        and moving_sprite.top > moving_sprite.boundary_top
+                    ):
+                        moving_sprite.change_y = 0
+                    elif (
+                        moving_sprite.boundary_bottom
+                        and moving_sprite.change_y < 0
+                        and moving_sprite.bottom < moving_sprite.boundary_bottom
+                    ):
+                        moving_sprite.change_y = 0
+                    elif moving_sprite.change_y == 0:
+                        moving_sprite.change_y = 1
 
-        if arcade.check_for_collision_with_list(
-            self.player_sprite, self.scene[layers.MOVING_TRAPS.value]
-        ):
+            if button_hit_list == []:
+                for moving_sprite in self.scene[layers.MOVING_TRAPS.value]:
+                    if (
+                        moving_sprite.boundary_bottom
+                        # and moving_sprite.change_y > 0
+                        and moving_sprite.bottom < moving_sprite.boundary_bottom
+                    ):
+                        moving_sprite.change_y = 0
+                    elif (
+                        moving_sprite.boundary_top
+                        and moving_sprite.change_y > 0
+                        and moving_sprite.top > moving_sprite.boundary_top
+                    ):
+                        moving_sprite.change_y = 0
+                    elif moving_sprite.change_y == 0:
+                        moving_sprite.change_y = -1
+
+            if arcade.check_for_collision_with_list(
+                self.player_sprite, self.scene[layers.MOVING_TRAPS.value]
+            ):
+                if time.time() - self.invulnerable_timer < 2:
+                    pass
+                else:
+                    self.hp -= 1
+                    self.invulnerable_timer = time.time()
+        if self.hp == 0:
             self.level = 1
             self.score = 0
+            self.hp = 3
             self.setup()
 
     def on_draw(self):
@@ -352,6 +380,14 @@ class GameView(arcade.View):
         arcade.draw_text(
             score_text,
             10,
+            10,
+            arcade.csscolor.WHITE,
+            18,
+        )
+        score_text = f"HP: {self.hp}"
+        arcade.draw_text(
+            score_text,
+            SCREEN_WIDTH - 680,
             10,
             arcade.csscolor.WHITE,
             18,
