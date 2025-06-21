@@ -274,7 +274,7 @@ class GameView(arcade.View):
             self.scene.update([layers.MOVING_TRAPS.value])
         if self.level == 2:
             self.scene.update([layers.BULLETS.value])
-
+            self.scene.update(["failing_platforms"])
         if self.level == 1:
             if arcade.check_for_collision_with_list(
                 self.player_sprite, self.scene[layers.TRAPS.value]
