@@ -82,6 +82,7 @@ class GameView(arcade.View):
         self.camera = None
         self.gui_camera = None
         self.physics_engine = None
+        self.platforms_to_fall = {}
 
         # Track the current state of what key is pressed
         self.left_pressed = False
@@ -120,13 +121,20 @@ class GameView(arcade.View):
         self.player_sprite.center_y = respawn_points[self.level][1]
         self.scene.add_sprite("Player", self.player_sprite)
 
-        self.physics_engine = arcade.PhysicsEnginePlatformer(
-            self.player_sprite,
-            gravity_constant=GRAVITY,
-            walls=[
+        if self.level == 2:
+            walls = [
                 self.scene["ground"],
                 self.scene["platforms"],
-            ],
+                self.scene["failing_platforms"],
+            ]
+        else:
+            walls = [
+                self.scene["ground"],
+                self.scene["platforms"],
+            ]
+
+        self.physics_engine = arcade.PhysicsEnginePlatformer(
+            self.player_sprite, gravity_constant=GRAVITY, walls=walls
         )
 
     def process_keychange(self):
@@ -301,12 +309,13 @@ class GameView(arcade.View):
                 self.player_sprite, self.scene["failing_platforms"]
             )
             for i in platforms_hit_list:
-                if i.number not in self.platforms_to_fall:
-                    self.platforms_to_fall[i.number] = time.time()
+                if i._properties["number"] not in self.platforms_to_fall:
+                    self.platforms_to_fall[i._properties["number"]] = time.time()
             for i in self.scene["failing_platforms"]:
                 if (
-                    i.number in self.platforms_to_fall
-                    and time.time() > self.platforms_to_fall[i.number] + 3
+                    i._properties["number"] in self.platforms_to_fall
+                    and time.time()
+                    > self.platforms_to_fall[i._properties["number"]] + 3
                 ):
                     l.append(i)
             for i in l:
