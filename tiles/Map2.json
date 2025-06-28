@@ -1234,6 +1234,12 @@
                  "height":18,
                  "id":12,
                  "name":"",
+                 "properties":[
+                        {
+                         "name":"number",
+                         "type":"int",
+                         "value":3
+                        }],
                  "rotation":0,
                  "type":"",
                  "visible":true,
@@ -1246,6 +1252,12 @@
                  "height":18,
                  "id":16,
                  "name":"",
+                 "properties":[
+                        {
+                         "name":"number",
+                         "type":"int",
+                         "value":4
+                        }],
                  "rotation":0,
                  "type":"",
                  "visible":true,
